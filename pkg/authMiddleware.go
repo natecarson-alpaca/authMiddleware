@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"golang.org/x/exp/slices"
 )
 
 type UserInfo struct {
@@ -44,4 +48,27 @@ func (authMiddleware *AuthMiddleware) getUserInfo(token string) (*UserInfo, erro
 	}
 
 	return &userData, nil
+}
+
+func (authMiddleware *AuthMiddleware) RequirePermission(context *gin.Context, permission string) {
+	userAuthHeader := context.GetHeader("Authorization")
+	userToken := strings.TrimPrefix(userAuthHeader, "Bearer ")
+
+	if userToken == "" {
+		context.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	userInfo, err := authMiddleware.getUserInfo(userToken)
+	if err != nil {
+		context.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	if !slices.Contains(userInfo.Permissions, permission) {
+		context.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+
+	context.Next()
 }
